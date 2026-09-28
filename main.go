@@ -13,11 +13,11 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
 const defaultServiceName = "hostless-gin-example"
@@ -30,7 +30,7 @@ func setupTracing(ctx context.Context, serviceName string) (*sdktrace.TracerProv
 
 	res, err := resource.Merge(
 		resource.Default(),
-		resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName(serviceName)),
+		resource.NewSchemaless(attribute.String("service.name", serviceName)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create OpenTelemetry resource: %w", err)
