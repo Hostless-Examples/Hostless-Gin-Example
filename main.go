@@ -84,8 +84,10 @@ func main() {
 	if port == "" {
 		port = "8000"
 	}
+	chainTargetURL := os.Getenv("CHAIN_TARGET_URL")
+	client := &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
+
 	router.GET("/outbound", func(c *gin.Context) {
-		client := &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
 		request, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, "http://127.0.0.1:"+port+"/health", nil)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -100,6 +102,33 @@ func main() {
 		defer response.Body.Close()
 
 		c.JSON(http.StatusOK, gin.H{"upstream_status": response.StatusCode})
+	})
+	router.GET("/chain", func(c *gin.Context) {
+		if chainTargetURL == "" {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":   "CHAIN_TARGET_URL is not configured",
+				"runtime": "go",
+			})
+			return
+		}
+
+		request, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, chainTargetURL, nil)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		response, err := client.Do(request)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		defer response.Body.Close()
+
+		c.JSON(response.StatusCode, gin.H{
+			"runtime":         "go",
+			"upstream_status": response.StatusCode,
+		})
 	})
 
 	server := &http.Server{

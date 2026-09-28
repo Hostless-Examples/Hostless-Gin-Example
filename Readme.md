@@ -25,3 +25,7 @@ Gin is a web framework written in Go (Golang). It features a martini-like API wi
 
 #### Example project
 An example project is hosted on [https://hostless-gin-example.hostless.app/](https://hostless-gin-example.hostless.app/)
+
+The tracing canary also exposes `GET /chain`, which calls `CHAIN_TARGET_URL`
+through the OpenTelemetry-instrumented HTTP client to verify W3C propagation
+across runtimes.
