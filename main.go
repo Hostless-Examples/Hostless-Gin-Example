@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +24,36 @@ import (
 
 const defaultServiceName = "hostless-gin-example"
 
+func samplerFromEnvironment() (sdktrace.Sampler, error) {
+	name := strings.ToLower(strings.TrimSpace(os.Getenv("OTEL_TRACES_SAMPLER")))
+	switch name {
+	case "", "parentbased_traceidratio", "traceidratio":
+		ratio := 1.0
+		if value := strings.TrimSpace(os.Getenv("OTEL_TRACES_SAMPLER_ARG")); value != "" {
+			parsed, err := strconv.ParseFloat(value, 64)
+			if err != nil || parsed < 0 || parsed > 1 {
+				return nil, fmt.Errorf("invalid OTEL_TRACES_SAMPLER_ARG %q", value)
+			}
+			ratio = parsed
+		}
+		ratioSampler := sdktrace.TraceIDRatioBased(ratio)
+		if name == "traceidratio" {
+			return ratioSampler, nil
+		}
+		return sdktrace.ParentBased(ratioSampler), nil
+	case "always_on":
+		return sdktrace.AlwaysSample(), nil
+	case "always_off":
+		return sdktrace.NeverSample(), nil
+	case "parentbased_always_on":
+		return sdktrace.ParentBased(sdktrace.AlwaysSample()), nil
+	case "parentbased_always_off":
+		return sdktrace.ParentBased(sdktrace.NeverSample()), nil
+	default:
+		return nil, fmt.Errorf("unsupported OTEL_TRACES_SAMPLER %q", name)
+	}
+}
+
 func setupTracing(ctx context.Context, serviceName string) (*sdktrace.TracerProvider, error) {
 	exporter, err := otlptracehttp.New(ctx)
 	if err != nil {
@@ -35,10 +67,15 @@ func setupTracing(ctx context.Context, serviceName string) (*sdktrace.TracerProv
 	if err != nil {
 		return nil, fmt.Errorf("create OpenTelemetry resource: %w", err)
 	}
+	sampler, err := samplerFromEnvironment()
+	if err != nil {
+		return nil, err
+	}
 
 	provider := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sampler),
 	)
 	otel.SetTracerProvider(provider)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(

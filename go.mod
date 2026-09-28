@@ -1,4 +1,4 @@
-module main
+module github.com/Hostless-Examples/Hostless-Gin-Example
 
 go 1.23.0
 
