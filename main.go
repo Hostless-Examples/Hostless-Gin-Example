@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,9 +21,20 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const defaultServiceName = "hostless-gin-example"
+
+var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+func logWithTraceContext(ctx context.Context, message string) {
+	spanContext := trace.SpanContextFromContext(ctx)
+	logger.InfoContext(ctx, message,
+		slog.String("trace_id", spanContext.TraceID().String()),
+		slog.String("span_id", spanContext.SpanID().String()),
+	)
+}
 
 func samplerFromEnvironment() (sdktrace.Sampler, error) {
 	name := strings.ToLower(strings.TrimSpace(os.Getenv("OTEL_TRACES_SAMPLER")))
@@ -114,6 +126,7 @@ func main() {
 		})
 	})
 	router.GET("/health", func(c *gin.Context) {
+		logWithTraceContext(c.Request.Context(), "health request handled")
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
